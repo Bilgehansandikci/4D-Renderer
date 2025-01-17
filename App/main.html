@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #sidebar {
+      float: left;
+      width: 200px;
+      height: 100vh; 
+      background-color: beige;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Adjustments for button style */
+    #draw-button {
+        display: block;
+        margin-top: 10px;
+    }
+
+    #info-panel {
+      float: right;
+      /*width: 200px; */
+      height: 100vh; 
+      background-color: beige;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #body-style {
+      /*width: 1400px; /* Adjust the width as needed */
+      /*margin: 0 auto; /* Center the body horizontally */
+      overflow: hidden; /* Hide any content that exceeds the body width */
+    }
+
+    /**/
+    #container {
+      display: flex;
+      height: 100%;
+      width: 100%;
+    }
+
+    #div1 {
+      flex: 0 0 200px; /* Fix width to 200px */
+      min-width: 200px; /* Set minimum width */
+      max-width: 200px; /* Set maximum width */
+      overflow-x: hidden; /* Hide horizontal overflow */
+      display: flex;
+      flex-direction: column;
+      background-color: beige;
+      padding: 20px;
+    }
+
+    #div2 {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: beige;
+      padding: 20px;
+    }
+
+    #gl-canvas {
+      width: 800;
+      height: 800;
+      border: 1px solid black;
+    }
+
+  </style>
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vColor;
+varying vec4 fColor;
+
+//#### 4D Rotation Angles (Uniforms for each plane)
+uniform float txw; // Rotation angle for (x, w) plane
+uniform float txy; // Rotation angle for (x, y) plane
+uniform float txz; // Rotation angle for (x, z) plane
+uniform float tyz; // Rotation angle for (y, z) plane
+uniform float tyw; // Rotation angle for (y, w) plane
+uniform float tzw; // Rotation angle for (z, w) plane (formerly tzx)
+
+void main() {
+    // Calculate rotation matrices for each plane of rotation
+
+    // Rotation in the (x, y) plane
+    float cxy = cos(txy);
+    float sxy = sin(txy);
+    mat4 rxy = mat4(
+        cxy, -sxy, 0.0, 0.0,
+        sxy,  cxy, 0.0, 0.0,
+        0.0,  0.0, 1.0, 0.0,
+        0.0,  0.0, 0.0, 1.0
+    );
+
+    // Rotation in the (x, z) plane
+    float cxz = cos(txz);
+    float sxz = sin(txz);
+    mat4 rxz = mat4(
+        cxz, 0.0, -sxz, 0.0,
+        0.0, 1.0,  0.0, 0.0,
+        sxz, 0.0,  cxz, 0.0,
+        0.0, 0.0,  0.0, 1.0
+    );
+
+    // Rotation in the (x, w) plane
+    float cxw = cos(txw);
+    float sxw = sin(txw);
+    mat4 rxw = mat4(
+        cxw, 0.0, 0.0, -sxw,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        sxw, 0.0, 0.0, cxw
+    );
+
+    // Rotation in the (y, z) plane
+    float cyz = cos(tyz);
+    float syz = sin(tyz);
+    mat4 ryz = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cyz, -syz, 0.0,
+        0.0, syz,  cyz, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
+    // Rotation in the (y, w) plane
+    float cyw = cos(tyw);
+    float syw = sin(tyw);
+    mat4 ryw = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cyw, 0.0, -syw,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, syw, 0.0, cyw
+    );
+
+    // Rotation in the (z, w) plane (renamed from tzx to tzw)
+    float czw = cos(tzw);
+    float szw = sin(tzw);
+    mat4 rzw = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, czw, -szw,
+        0.0, 0.0, szw, czw
+    );
+
+    // Combine all rotations by multiplying matrices
+    mat4 rotationMatrix = rxy * rxz * rxw * ryz * ryw * rzw;
+	
+	vec4 projectedPosition = rotationMatrix * vPosition;
+	
+    // Apply the combined rotation matrix to the vertex position
+    gl_Position = vec4(projectedPosition.x,projectedPosition.y,0.0,1.0);
+
+    // Set the point size and color
+    gl_PointSize = 10.0;
+    fColor = vColor;
+}
+</script>
+<script id="fragment-shader" type="x-shader/x-fragment">
+  precision mediump float;
+
+  uniform vec4 uColor; // Uniform color
+  
+  varying vec4 fColor; // Varying color passed from vertex shader
+  
+  void main() {
+      gl_FragColor = uColor; // Set final color (for uniform color)
+  }
+</script>
+
+</head>
+<body id="body-style">
+  <div id="container">
+    <div id="div1">
+		<div class="slider-container">
+		<label for="shape-selector">Choose Shape:</label>
+		<select id="shape-selector">
+		  <option value="8cell">Tesseract(8-cell)</option>
+		  <option value="5cell">Pentachoron(5-cell)</option>
+		  <option value="16cell">hexadecachoron(16-cell)</option>
+		  <option value="24cell">Icositetrachoron(24-cell)</option>
+		  <option value="600cell">Hexacosichoron(600-cell)</option>
+		  <option value="120cell">Hecatonicosachoron(120-cell)</option>
+
+
+		  <option value="other">Other Shape</option>
+		</select>
+	  </div>
+	
+	  <label for="txw-slider">Rotate on X-W axis:</label><br>
+	  <input type="range" id="txw-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="txw-speed" min="0" max="0.1" step="0.001" value="0.0">
+	  <br><br>
+	  
+	  <label for="txy-slider">Rotate on X-Y axis:</label><br>
+	  <input type="range" id="txy-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="txy-speed" min="0" max="0.1" step="0.001" value="0.0">
+	  <br><br>
+	  
+	  <label for="txz-slider">Rotate on X-Z axis:</label><br>
+	  <input type="range" id="txz-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="txz-speed" min="0" max="0.1" step="0.001" value="0.0">
+	  <br><br>
+
+	  <label for="tyz-slider">Rotate on Y-Z axis:</label><br>
+	  <input type="range" id="tyz-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="tyz-speed" min="0" max="0.1" step="0.001" value="0.0">
+	  <br><br>
+
+	  <label for="tyw-slider">Rotate on Y-W axis:</label><br>
+	  <input type="range" id="tyw-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="tyw-speed" min="0" max="0.1" step="0.001" value="0.0">
+	  <br><br>
+
+	  <label for="tzw-slider">Rotate on Z-W axis:</label><br>
+	  <input type="range" id="tzw-change" min="0.0" max="2.0" step="0.01" value="0.0">
+	  <input type="range" id="tzw-speed" min="0" max="0.1" step="0.001" value="0.01">
+	</div>
+
+    <div id="canvas-container">
+      <canvas id="gl-canvas" width="800" height="800" style="border: 1px solid black;">
+        Oops ... your browser doesn't support the HTML5 canvas element
+      </canvas>
+    </div>
+
+    <div id="div2">
+      
+    </div>
+  </div>
+
+</body>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+
+<script type="text/javascript" src="main.js"></script>
+</html>
+
+
+
